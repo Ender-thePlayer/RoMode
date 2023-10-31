@@ -11,38 +11,19 @@ gi.require_version('Adw', '1')
 from romode.settings import SettingsWindow
 from gi.repository import Gtk, Adw, Gio, GLib, Gdk
 
-## Temp fix, it works only in a flatpak enviroment, this isn't yet a flatpak
-os.environ["XDG_CONFIG_HOME"] = '/home/ender/.config'
-
-standard_config_dir = os.environ.get('XDG_CONFIG_HOME')
-config_dir = os.path.join(standard_config_dir, 'romode')
-config_file = os.path.join(config_dir, 'config.json')
-
-if not os.path.isdir(config_dir):
-    os.mkdir(config_dir) 
-
-config_data = {}
-if os.path.exists(config_file):
-    with open(config_file, 'r') as f:
-        try:
-            config_data = json.load(f)
-        except json.decoder.JSONDecodeError:
-            config_data = {}
-
-
 class MainWindow(Gtk.ApplicationWindow):
-    def __init__(self, *args, **kwargs):
-        with open(config_file, 'r') as file:
-            data = json.load(file)
-        
+    def __init__(self, config_data, config_file, *args, **kwargs):
+
         self.style_manager = Adw.StyleManager().get_default()
 
-        if not data['theme']:
+        theme = config_data.get('theme', None)
+
+        if not theme:
             print(self.style_manager.get_system_supports_color_schemes())
             self.style_manager.set_color_scheme(Adw.ColorScheme.PREFER_LIGHT)
-        if data['theme'] == 'light':
+        if theme == 'light':
             self.style_manager.set_color_scheme(Adw.ColorScheme.FORCE_LIGHT)
-        if data['theme'] == 'dark':
+        if theme == 'dark':
             self.style_manager.set_color_scheme(Adw.ColorScheme.FORCE_DARK)
 
 
@@ -56,7 +37,7 @@ class MainWindow(Gtk.ApplicationWindow):
 
         self.settbutton = Gtk.Button()
         self.settbutton.set_icon_name(icon_name='preferences-system-symbolic')    
-        self.settbutton.connect("clicked", self.on_settings_button_clicked)
+        self.settbutton.connect("clicked", lambda btn: self.on_settings_button_clicked(btn, config_file))
         self.header.pack_end(child=self.settbutton)
 
     ##BOX FOR EVERYTHING
@@ -108,8 +89,7 @@ class MainWindow(Gtk.ApplicationWindow):
         self.timer_id = None
         self.text_buffer = self.text_view.get_buffer()
 
-
-## Actual Functional 100% confirmed functions
-    def on_settings_button_clicked(self, button):
-        settings_window = SettingsWindow(self)
+    ## Actual Functional 100% confirmed functions
+    def on_settings_button_clicked(self, button, config_file):
+        settings_window = SettingsWindow(self, config_file)
         settings_window.present()

@@ -6,27 +6,37 @@ import json
 from os.path import expanduser
 import spotipy
 from spotipy.oauth2 import SpotifyClientCredentials
+from functools import partial
+from romode.abw_dialog import on_about_action
+from romode.functions import *
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
 from gi.repository import Gtk, Adw, Gio, GLib, Gdk
 
-## Temp fix, it works only in a flatpak enviroment, this isn't yet a flatpak
-os.environ["XDG_CONFIG_HOME"] = '/home/ender/.config'
-
-standard_config_dir = os.environ.get('XDG_CONFIG_HOME')
-config_dir = os.path.join(standard_config_dir, 'romode')
-config_file = os.path.join(config_dir, 'config.json')
-
-config_data = {}
-if os.path.exists(config_file):
-    with open(config_file, 'r') as f:
-        try:
-            config_data = json.load(f)
-        except json.decoder.JSONDecodeError:
-            config_data = {}
 
 class SettingsWindow(Gtk.Window):
-    def __init__(self, parent_window):
+    def __init__(self, parent_window, config_file):
+
+        config_data = {}
+        if os.path.exists(config_file):
+            with open(config_file, 'r') as f:
+                try:
+                    config_data = json.load(f)
+                except json.decoder.JSONDecodeError:
+                    config_data = {}
+
+        try:
+            with open(config_file) as file:
+                try:
+                    data = json.load(file)
+                except json.decoder.JSONDecodeError:
+                    data = {}
+                    
+        except FileNotFoundError:
+            data = {}
+            with open(config_file, 'w') as file:
+                json.dump(data, file)
+
 
         self.MainWindow = parent_window
 
@@ -61,7 +71,7 @@ class SettingsWindow(Gtk.Window):
         leftside_vbox.append(exportbtn)
 
         aboutbtn = Gtk.Button(label="About")
-        aboutbtn.connect("clicked", lambda btn:self.on_about_action())
+        aboutbtn.connect("clicked", lambda btn:on_about_action(self))
         leftside_vbox.append(aboutbtn)
 
         separator = Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL)
@@ -93,9 +103,16 @@ class SettingsWindow(Gtk.Window):
         secret_entry = Gtk.Entry()
         secret_entry.set_size_request(600, 40)
         secret_entry.set_halign(Gtk.Align.CENTER)
-        secret_entry.set_placeholder_text("Enter your Spotify Client Secret here")
         secret_entry.connect("changed", on_secret_entry_changed)
         rightside_vbox.append(secret_entry)
+
+        spotify_client_secret = data.get('spotify_client_secret', None)
+        # theme = data.get('theme', None)
+
+        if spotify_client_secret is not None and spotify_client_secret != "":
+            secret_entry.set_text(spotify_client_secret)
+        else:
+            secret_entry.set_placeholder_text("Enter your Spotify Client Secret here")
 
         leftside_settings_separator = Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL)
         leftside_settings_separator.set_size_request(5, -1)
@@ -107,7 +124,7 @@ class SettingsWindow(Gtk.Window):
         rightside_vbox.append(misccat_label)
 
         misc_toggle_button = Gtk.Button(label="Switch Theme")
-        misc_toggle_button.connect("clicked", self.switch_theme)
+        misc_toggle_button.connect("clicked", partial(switch_theme, self))
         rightside_vbox.append(misc_toggle_button)
 
 
@@ -117,44 +134,3 @@ class SettingsWindow(Gtk.Window):
 
         mainsettings_hbox.append(scrolled_window)
 
-    def on_about_action(self):
-        self.hide()
-        dialog = Adw.AboutWindow.new()
-        dialog.set_transient_for(self.MainWindow)
-        dialog.set_application_name('Romanian Mode')
-        dialog.set_version('0.2-alpha')
-        dialog.set_developer_name('by EnderDatsIt')
-        dialog.set_application_icon('face-wink')
-        dialog.present()
-
-    def switch_theme(self, buttons):
-    # Set the light mode preference
-        self.MainWindow.style_manager = Adw.StyleManager().get_default()
-        if self.MainWindow.style_manager.get_dark():
-            self.MainWindow.style_manager.set_color_scheme(Adw.ColorScheme.FORCE_LIGHT)
-
-            config_data['theme'] = 'light'
-
-            with open(config_file, 'w') as f:
-                json.dump(config_data, f)
-        else:
-            self.MainWindow.style_manager.set_color_scheme(Adw.ColorScheme.FORCE_DARK)
-            config_data['theme'] = 'dark'
-
-            with open(config_file, 'w') as f:
-                json.dump(config_data, f)
-
-def on_id_entry_changed(entry):
-    text = entry.get_text()
-    config_data['spotify_client_id'] = text
-
-    with open(config_file, 'w') as f:
-        json.dump(config_data, f)
-
-
-def on_secret_entry_changed(entry):
-    text = entry.get_text()
-    config_data['spotify_client_secret'] = text
-
-    with open(config_file, 'w') as f:
-        json.dump(config_data, f)
